@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go WebSocket Chat</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+            --light-bg: #f9fafb;
+            --dark-bg: #111827;
+            --light-sidebar: #ffffff;
+            --dark-sidebar: #1f2937;
+            --light-text: #6b7280;
+            --dark-text: #1f2937;
+            --light-text-dark-mode: #e5e7eb;
+            --sent-bg-light: #e0e7ff;
+            --sent-bg-dark: #4338ca;
+            --received-bg-light: #f3f4f6;
+            --received-bg-dark: #374151;
+            --border-color-light: #e5e7eb;
+            --border-color-dark: #374151;
+            --chat-bg-light: #ffffff;
+            --chat-bg-dark: #1f2937;
+            --input-bg-light: #ffffff;
+            --input-bg-dark: #374151;
+            --game-bg-light: #f3f4f6;
+            --game-bg-dark: #2d3748;
+        }
+
+        .light-mode {
+            --bg-color: var(--light-bg);
+            --text-color: var(--dark-text);
+            --sidebar-bg: var(--light-sidebar);
+            --chat-bg: var(--chat-bg-light);
+            --sent-bg: var(--sent-bg-light);
+            --received-bg: var(--received-bg-light);
+            --border-color: var(--border-color-light);
+            --input-bg: var(--input-bg-light);
+            --game-bg: var(--game-bg-light);
+        }
+
+        .dark-mode {
+            --bg-color: var(--dark-bg);
+            --text-color: var(--light-text-dark-mode);
+            --sidebar-bg: var(--dark-sidebar);
+            --chat-bg: var(--chat-bg-dark);
+            --sent-bg: var(--sent-bg-dark);
+            --received-bg: var(--received-bg-dark);
+            --border-color: var(--border-color-dark);
+            --input-bg: var(--input-bg-dark);
+            --game-bg: var(--game-bg-dark);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 280px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 1rem;
+        }
+
+        .sidebar-header h2 {
+            font-size: 1.25rem;
+            color: var(--primary-color);
+        }
+
+        .theme-toggle {
+            cursor: pointer;
+            font-size: 1.25rem;
+            color: var(--text-color);
+        }
+
+        .sidebar-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .sidebar-section h3 {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            color: var(--light-text);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-section h3 .toggle-icon {
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .sidebar-section h3 .toggle-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .game-container {
+            background-color: var(--game-bg);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .game-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .game-title i {
+            cursor: pointer;
+        }
+
+        /* Tic Tac Toe Game */
+        .tictactoe-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .tictactoe-cell {
+            aspect-ratio: 1;
+            background-color: var(--input-bg);
+            border-radius: 0.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .tictactoe-cell:hover {
+            background-color: rgba(79, 70, 229, 0.1);
+        }
+
+        .tictactoe-cell.x {
+            color: #ef4444;
+        }
+
+        .tictactoe-cell.o {
+            color: #3b82f6;
+        }
+
+        .game-status {
+            margin-top: 0.5rem;
+            text-align: center;
+            font-size: 0.875rem;
+        }
+
+        .game-button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 0.25rem;
+            padding: 0.5rem;
+            margin-top: 0.5rem;
+            cursor: pointer;
+            width: 100%;
+            font-size: 0.875rem;
+            transition: background-color 0.2s;
+        }
+
+        .game-button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        /* Rock Paper Scissors Game */
+        .rps-options {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+        }
+
+        .rps-option {
+            font-size: 1.5rem;
+            cursor: pointer;
+            background-color: var(--input-bg);
+            width: 3rem;
+            height: 3rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+
+        .rps-option:hover {
+            transform: scale(1.1);
+            background-color: rgba(79, 70, 229, 0.1);
+        }
+
+        .rps-result {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .rps-score {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+            font-weight: bold;
+        }
+
+        /* Memory Game */
+        .memory-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .memory-card {
+            aspect-ratio: 1;
+            background-color: var(--primary-color);
+            border-radius: 0.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            cursor: pointer;
+            transition: transform 0.3s, background-color 0.3s;
+            transform-style: preserve-3d;
+        }
+
+        .memory-card.flipped {
+            transform: rotateY(180deg);
+            background-color: var(--input-bg);
+        }
+
+        .memory-card.matched {
+            background-color: #10b981;
+            cursor: default;
+        }
+
+        /* Word Guess Game */
+        .word-display {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 0.5rem 0;
+        }
+
+        .word-letter {
+            width: 1.5rem;
+            height: 1.5rem;
+            border-bottom: 2px solid var(--text-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .word-keyboard {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.25rem;
+            margin-top: 0.5rem;
+        }
+
+        .word-key {
+            aspect-ratio: 1;
+            background-color: var(--input-bg);
+            border-radius: 0.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .word-key:hover {
+            background-color: rgba(79, 70, 229, 0.1);
+        }
+
+        .word-key.used {
+            background-color: var(--light-text);
+            color: var(--input-bg);
+            cursor: default;
+        }
+
+        .word-key.correct {
+            background-color: #10b981;
+            color: white;
+            cursor: default;
+        }        /* Chat Container Styles */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .chat-container {
+            max-width: 1200px;
+            width: 100%;
+            height: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 1rem;
+        }
+
+        .chat-header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-right: auto;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            font-size: 0.875rem;
+            color: var(--light-text);
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            background-color: #ef4444;
+        }
+
+        .status-indicator.connected {
+            background-color: #10b981;
+        }        
+        
+        .chat-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            height: calc(100vh - 150px);
+        }
+
+        #chatbox {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 70px;
+            overflow-y: auto;
+            padding: 1rem;
+            background-color: var(--chat-bg);
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            border-radius: 1rem;
+            margin-bottom: 1rem;
+            word-break: break-word;
+            position: relative;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.sent {
+            align-self: flex-end;
+            background-color: var(--sent-bg);
+            border-bottom-right-radius: 0.25rem;
+            color: var(--text-color);
+        }
+
+        .message.received {
+            align-self: flex-start;
+            background-color: var(--received-bg);
+            border-bottom-left-radius: 0.25rem;
+        }
+
+        .message-sender {
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+            color: var(--primary-color);
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            color: var(--light-text);
+            margin-top: 0.25rem;
+            text-align: right;
+        }
+
+        .chat-footer {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background-color: var(--input-bg);
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+        }
+
+        #message {
+            flex-grow: 1;
+            padding: 0.75rem 1rem;
+            border: none;
+            outline: none;
+            font-size: 1rem;
+            background-color: transparent;
+            color: var(--text-color);
+        }
+
+        #send {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        #send:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .system-message {
+            text-align: center;
+            padding: 0.5rem;
+            margin: 0.5rem 0;
+            color: var(--light-text);
+            font-size: 0.875rem;
+        }
+
+        /* Mobile Toggle */
+        .mobile-toggle {
+            display: none;
+            position: fixed;
+            bottom: 1rem;
+            left: 1rem;
+            background-color: var(--primary-color);
+            color: white;
+            width: 3rem;
+            height: 3rem;
+            border-radius: 50%;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 100;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Responsive styles */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -280px;
+                top: 0;
+                bottom: 0;
+                z-index: 10;
+                transition: left 0.3s ease;
+                box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            }
+
+            .sidebar.open {
+                left: 0;
+            }
+
+            .mobile-toggle {
+                display: flex;
+            }
+
+            .chat-container {
+                padding: 0.5rem;
+            }
+            
+            .message {
+                max-width: 90%;
+            }
+            
+            .chat-header h1 {
+                font-size: 1.25rem;
+            }
+            
+            #send {
+                padding: 0.75rem 1rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .chat-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+            
+            .connection-status {
+                margin-top: 0.5rem;
+            }
+            
+            .message {
+                max-width: 95%;
+            }
+        }
+    </style>
+</head>
+<body class="light-mode">
+    <!-- Mobile Sidebar Toggle -->
+    <div class="mobile-toggle" id="mobile-toggle">
+        <i class="fas fa-gamepad"></i>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>Chat Games</h2>
+            <div class="theme-toggle" id="theme-toggle">
+                <i class="fas fa-moon"></i>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <h3>
+                <span>Tic Tac Toe</span>
+                <i class="fas fa-chevron-down toggle-icon" data-target="tictactoe-game"></i>
+            </h3>
+            <div class="game-container" id="tictactoe-game">
+                <div class="game-title">
+                    <span>Play against AI</span>
+                    <i class="fas fa-rotate-right" id="tictactoe-reset"></i>
+                </div>
+                <div class="tictactoe-board" id="tictactoe-board">
+                    <!-- Board cells will be generated by JS -->
+                </div>
+                <div class="game-status" id="tictactoe-status">Your turn (X)</div>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <h3>
+                <span>Rock Paper Scissors</span>
+                <i class="fas fa-chevron-down toggle-icon" data-target="rps-game"></i>
+            </h3>
+            <div class="game-container" id="rps-game">
+                <div class="game-title">
+                    <span>Make your choice</span>
+                </div>
+                <div class="rps-options">
+                    <div class="rps-option" data-choice="rock">✊</div>
+                    <div class="rps-option" data-choice="paper">✋</div>
+                    <div class="rps-option" data-choice="scissors">✌️</div>
+                </div>
+                <div class="rps-result">
+                    <div>You: <span id="rps-player-choice">-</span></div>
+                    <div>AI: <span id="rps-ai-choice">-</span></div>
+                </div>
+                <div class="game-status" id="rps-status">Choose to start</div>
+                <div class="rps-score">
+                    <div>Wins: <span id="rps-wins">0</span></div>
+                    <div>Losses: <span id="rps-losses">0</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <h3>
+                <span>Memory Match</span>
+                <i class="fas fa-chevron-down toggle-icon" data-target="memory-game"></i>
+            </h3>
+            <div class="game-container" id="memory-game">
+                <div class="game-title">
+                    <span>Match the pairs</span>
+                    <i class="fas fa-rotate-right" id="memory-reset"></i>
+                </div>
+                <div class="memory-board" id="memory-board">
+                    <!-- Memory cards will be generated by JS -->
+                </div>
+                <div class="game-status" id="memory-status">Pairs found: 0/3</div>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <h3>
+                <span>Word Guess</span>
+                <i class="fas fa-chevron-down toggle-icon" data-target="word-game"></i>
+            </h3>
+            <div class="game-container" id="word-game">
+                <div class="game-title">
+                    <span>Guess the word</span>
+                    <i class="fas fa-rotate-right" id="word-reset"></i>
+                </div>
+                <div class="word-display" id="word-display">
+                    <!-- Word letters will be generated by JS -->
+                </div>
+                <div class="game-status" id="word-status">Guesses left: 6</div>
+                <div class="word-keyboard" id="word-keyboard">
+                    <!-- Keyboard will be generated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="chat-container">
+            <div class="chat-header">
+                <h1>Go WebSocket Chat</h1>
+                <div class="connection-status">
+                    <div id="status-indicator" class="status-indicator"></div>
+                    <span id="connection-text">Disconnected</span>
+                </div>
+            </div>
+            
+            <div class="chat-body">
+                <div id="chatbox"></div>
+                
+                <div class="chat-footer">
+                    <input type="text" id="message" placeholder="Type a message..." autocomplete="off"/>
+                    <button id="send">
+                        <span>Send</span>
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Chat WebSocket Logic
+        const chatbox = document.getElementById('chatbox');
+        const messageInput = document.getElementById('message');
+        const sendButton = document.getElementById('send');
+        const statusIndicator = document.getElementById('status-indicator');
+        const connectionText = document.getElementById('connection-text');
+        const themeToggle = document.getElementById('theme-toggle');
+        const mobileToggle = document.getElementById('mobile-toggle');
+        const sidebar = document.getElementById('sidebar');
+        const body = document.body;
+        let ws;
+        let username = '';
+        
+        // Store sent messages to prevent duplicates
+        const sentMessages = new Set();
+
+        function promptForUsername() {
+            const name = prompt("Please enter your username:", "");
+            return name || "Anonymous";
+        }
+
+        // Theme toggle functionality
+        themeToggle.addEventListener('click', () => {
+            if (body.classList.contains('light-mode')) {
+                body.classList.remove('light-mode');
+                body.classList.add('dark-mode');
+                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                body.classList.remove('dark-mode');
+                body.classList.add('light-mode');
+                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        });
+
+        // Mobile sidebar toggle
+        mobileToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('open');
+        });
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 768 && 
+                !sidebar.contains(e.target) && 
+                !mobileToggle.contains(e.target) &&
+                sidebar.classList.contains('open')) {
+                sidebar.classList.remove('open');
+            }
+        });
+
+        // Toggle game sections
+        document.querySelectorAll('.toggle-icon').forEach(icon => {
+            icon.addEventListener('click', () => {
+                const targetId = icon.getAttribute('data-target');
+                const targetElement = document.getElementById(targetId);
+                
+                if (targetElement.style.display === 'none') {
+                    targetElement.style.display = 'block';
+                    icon.classList.remove('collapsed');
+                } else {
+                    targetElement.style.display = 'none';
+                    icon.classList.add('collapsed');
+                }
+            });
+        });
+
+        function formatTime() {
+            const now = new Date();
+            return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function showMessage(content, type, sender) {
+            if (type === 'received' && sentMessages.has(content)) {
+                return;
+            }
+            
+            const div = document.createElement('div');
+            div.className = 'message ' + type;
+            
+            // Add sender name if provided
+            if (sender) {
+                const senderDiv = document.createElement('div');
+                senderDiv.className = 'message-sender';
+                senderDiv.textContent = sender;
+                div.appendChild(senderDiv);
+            }
+            
+            // Create message content
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            messageContent.textContent = content;
+            
+            // Create time element
+            const timeElement = document.createElement('div');
+            timeElement.className = 'message-time';
+            timeElement.textContent = formatTime();
+            
+            div.appendChild(messageContent);
+            div.appendChild(timeElement);
+            
+            chatbox.appendChild(div);
+            chatbox.scrollTop = chatbox.scrollHeight;
+        }
+
+        function showSystemMessage(content) {
+            const div = document.createElement('div');
+            div.className = 'system-message';
+            div.textContent = content;
+            chatbox.appendChild(div);
+            chatbox.scrollTop = chatbox.scrollHeight;
+        }
+
+        function updateConnectionStatus(connected) {
+            if (connected) {
+                statusIndicator.classList.add('connected');
+                connectionText.textContent = 'Connected';
+            } else {
+                statusIndicator.classList.remove('connected');
+                connectionText.textContent = 'Disconnected';
+            }
+        }
+
+        function connect() {
+            username = promptForUsername();
+            // Include username in WebSocket URL
+            ws = new WebSocket(`ws://localhost:8080/ws?name=${encodeURIComponent(username)}`);
+
+            ws.onopen = function(evt) {
+                console.log("Connected to WebSocket server.");
+                updateConnectionStatus(true);
+                showSystemMessage(`Connected to server as ${username}`);
+            };
+
+            ws.onmessage = function(evt) {
+                console.log("Message from server: " + evt.data);
+                try {
+                    const messageData = JSON.parse(evt.data);
+                    // Only show received messages from others
+                    if (!sentMessages.has(messageData.content)) {
+                        showMessage(messageData.content, "received", messageData.sender);
+                    }
+                } catch (e) {
+                    console.error("Error parsing message:", e);
+                }
+            };
+
+            ws.onclose = function(evt) {
+                console.log("Disconnected from WebSocket server.");
+                updateConnectionStatus(false);
+                showSystemMessage("Disconnected. Attempting to reconnect...");
+                // Try to reconnect after a delay
+                setTimeout(connect, 3000);
+            };
+
+            ws.onerror = function(evt) {
+                console.error("WebSocket error: ", evt);
+                updateConnectionStatus(false);
+                showSystemMessage("Connection error. Reconnecting...");
+                ws.close(); // This will trigger onclose and the reconnect logic
+            };
+        }
+
+        function sendMessage() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showSystemMessage("Not connected to server.");
+                return;
+            }
+            const message = messageInput.value.trim();
+            if (message) {
+                // Add the message content to sent messages set
+                sentMessages.add(message);
+                
+                // Limit the size of sentMessages
+                if (sentMessages.size > 100) {
+                    const iterator = sentMessages.values();
+                    sentMessages.delete(iterator.next().value);
+                }
+                
+                ws.send(message);
+                showMessage(message, "sent", "You");
+                messageInput.value = '';
+            }
+        }
+
+        sendButton.onclick = sendMessage;
+
+        messageInput.addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                sendMessage();
+            }
+        });
+
+        // Focus the input field when the page loads
+        window.onload = function() {
+            messageInput.focus();
+            initGames();
+        };
+
+        // Initial connection attempt
+        connect();
+
+        // Games Logic
+        function initGames() {
+            initTicTacToe();
+            initRockPaperScissors();
+            initMemoryGame();
+            initWordGame();
+        }
+
+        // Tic Tac Toe Game
+        function initTicTacToe() {
+            const board = document.getElementById('tictactoe-board');
+            const status = document.getElementById('tictactoe-status');
+            const resetBtn = document.getElementById('tictactoe-reset');
+            let currentPlayer = 'x';
+            let gameState = ['', '', '', '', '', '', '', '', ''];
+            let gameActive = true;
+
+            // Create board cells
+            for (let i = 0; i < 9; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'tictactoe-cell';
+                cell.setAttribute('data-index', i);
+                cell.addEventListener('click', () => handleCellClick(i));
+                board.appendChild(cell);
+            }
+
+            function handleCellClick(index) {
+                if (gameState[index] !== '' || !gameActive) return;
+
+                // Player move
+                gameState[index] = currentPlayer;
+                updateBoard();
+                
+                if (checkWinner()) {
+                    status.textContent = `You win!`;
+                    gameActive = false;
+                    return;
+                }
+                
+                if (gameState.every(cell => cell !== '')) {
+                    status.textContent = "It's a draw!";
+                    gameActive = false;
+                    return;
+                }
+
+                // AI move
+                currentPlayer = 'o';
+                status.textContent = "AI is thinking...";
+                
+                setTimeout(() => {
+                    makeAIMove();
+                    updateBoard();
+                    
+                    if (checkWinner()) {
+                        status.textContent = `AI wins!`;
+                        gameActive = false;
+                        return;
+                    }
+                    
+                    if (gameState.every(cell => cell !== '')) {
+                        status.textContent = "It's a draw!";
+                        gameActive = false;
+                        return;
+                    }
+                    
+                    currentPlayer = 'x';
+                    status.textContent = "Your turn (X)";
+                }, 500);
+            }
+
+            function makeAIMove() {
+                // Simple AI: first try to win, then block player, then random move
+                const winningMoves = findWinningMove('o');
+                if (winningMoves.length > 0) {
+                    const move = winningMoves[Math.floor(Math.random() * winningMoves.length)];
+                    gameState[move] = 'o';
+                    return;
+                }
+                
+                const blockingMoves = findWinningMove('x');
+                if (blockingMoves.length > 0) {
+                    const move = blockingMoves[Math.floor(Math.random() * blockingMoves.length)];
+                    gameState[move] = 'o';
+                    return;
+                }
+                
+                // Random move
+                const emptyCells = gameState.map((cell, index) => cell === '' ? index : null).filter(index => index !== null);
+                if (emptyCells.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * emptyCells.length);
+                    gameState[emptyCells[randomIndex]] = 'o';
+                }
+            }
+
+            function findWinningMove(player) {
+                const winPatterns = [
+                    [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+                    [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
+                    [0, 4, 8], [2, 4, 6]             // diagonals
+                ];
+                
+                const winningMoves = [];
+                
+                for (const pattern of winPatterns) {
+                    const [a, b, c] = pattern;
+                    const cells = [gameState[a], gameState[b], gameState[c]];
+                    const playerCells = cells.filter(cell => cell === player).length;
+                    const emptyCells = cells.filter(cell => cell === '').length;
+                    
+                    if (playerCells === 2 && emptyCells === 1) {
+                        // This is a winning move
+                        const emptyIndex = pattern[cells.indexOf('')];
+                        winningMoves.push(emptyIndex);
+                    }
+                }
+                
+                return winningMoves;
+            }
+
+            function updateBoard() {
+                const cells = document.querySelectorAll('.tictactoe-cell');
+                cells.forEach((cell, index) => {
+                    cell.textContent = gameState[index].toUpperCase();
+                    cell.className = 'tictactoe-cell ' + gameState[index];
+                });
+            }
+
+            function checkWinner() {
+                const winPatterns = [
+                    [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+                    [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
+                    [0, 4, 8], [2, 4, 6]             // diagonals
+                ];
+                
+                return winPatterns.some(pattern => {
+                    const [a, b, c] = pattern;
+                    return gameState[a] !== '' && 
+                           gameState[a] === gameState[b] && 
+                           gameState[a] === gameState[c];
+                });
+            }
+
+            function resetGame() {
+                gameState = ['', '', '', '', '', '', '', '', ''];
+                gameActive = true;
+                currentPlayer = 'x';
+                status.textContent = "Your turn (X)";
+                updateBoard();
+            }
+
+            resetBtn.addEventListener('click', resetGame);
+        }
+
+        // Rock Paper Scissors Game
+        function initRockPaperScissors() {
+            const options = document.querySelectorAll('.rps-option');
+            const playerChoice = document.getElementById('rps-player-choice');
+            const aiChoice = document.getElementById('rps-ai-choice');
+            const status = document.getElementById('rps-status');
+            const winsElement = document.getElementById('rps-wins');
+            const lossesElement = document.getElementById('rps-losses');
+            
+            let wins = 0;
+            let losses = 0;
+
+            options.forEach(option => {
+                option.addEventListener('click', () => {
+                    const choice = option.getAttribute('data-choice');
+                    playRound(choice);
+                });
+            });
+
+            function playRound(playerMove) {
+                const moves = ['rock', 'paper', 'scissors'];
+                const aiMove = moves[Math.floor(Math.random() * moves.length)];
+                
+                playerChoice.textContent = getEmoji(playerMove);
+                aiChoice.textContent = getEmoji(aiMove);
+                
+                const result = getResult(playerMove, aiMove);
+                
+                if (result === 'win') {
+                    status.textContent = "You win!";
+                    wins++;
+                    winsElement.textContent = wins;
+                } else if (result === 'lose') {
+                    status.textContent = "You lose!";
+                    losses++;
+                    lossesElement.textContent = losses;
+                } else {
+                    status.textContent = "It's a tie!";
+                }
+            }
+
+            function getEmoji(move) {
+                switch (move) {
+                    case 'rock': return '✊';
+                    case 'paper': return '✋';
+                    case 'scissors': return '✌️';
+                    default: return '-';
+                }
+            }
+
+            function getResult(player, ai) {
+                if (player === ai) return 'tie';
+                
+                if (
+                    (player === 'rock' && ai === 'scissors') ||
+                    (player === 'paper' && ai === 'rock') ||
+                    (player === 'scissors' && ai === 'paper')
+                ) {
+                    return 'win';
+                }
+                
+                return 'lose';
+            }
+        }
+
+        // Memory Game
+        function initMemoryGame() {
+            const board = document.getElementById('memory-board');
+            const status = document.getElementById('memory-status');
+            const resetBtn = document.getElementById('memory-reset');
+            
+            const emojis = ['🍎', '🍌', '🍒', '🍊', '🍇', '🍓'];
+            let cards = [];
+            let flippedCards = [];
+            let matchedPairs = 0;
+            
+            function setupGame() {
+                // Clear the board
+                board.innerHTML = '';
+                
+                // Reset game state
+                cards = [];
+                flippedCards = [];
+                matchedPairs = 0;
+                status.textContent = "Pairs found: 0/3";
+                
+                // Create a deck with pairs
+                const gamePairs = emojis.slice(0, 3);
+                const deck = [...gamePairs, ...gamePairs];
+                
+                // Shuffle the deck
+                for (let i = deck.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [deck[i], deck[j]] = [deck[j], deck[i]];
+                }
+                
+                // Create the cards
+                deck.forEach((emoji, index) => {
+                    const card = document.createElement('div');
+                    card.className = 'memory-card';
+                    card.setAttribute('data-index', index);
+                    card.setAttribute('data-emoji', emoji);
+                    
+                    card.addEventListener('click', () => flipCard(card, emoji, index));
+                    
+                    board.appendChild(card);
+                    cards.push(card);
+                });
+            }
+            
+            function flipCard(card, emoji, index) {
+                // Ignore if card is already flipped or matched
+                if (card.classList.contains('flipped') || 
+                    card.classList.contains('matched') ||
+                    flippedCards.length >= 2) {
+                    return;
+                }
+                
+                // Flip the card
+                card.classList.add('flipped');
+                card.textContent = emoji;
+                flippedCards.push({ card, emoji, index });
+                
+                // Check for match if we have 2 flipped cards
+                if (flippedCards.length === 2) {
+                    checkForMatch();
+                }
+            }
+            
+            function checkForMatch() {
+                const [card1, card2] = flippedCards;
+                
+                // Disable clicks during check
+                setTimeout(() => {
+                    if (card1.emoji === card2.emoji) {
+                        // Match found
+                        card1.card.classList.add('matched');
+                        card2.card.classList.add('matched');
+                        matchedPairs++;
+                        status.textContent = `Pairs found: ${matchedPairs}/3`;
+                        
+                        if (matchedPairs === 3) {
+                            status.textContent = "You win! All pairs found.";
+                        }
+                    } else {
+                        // No match
+                        card1.card.classList.remove('flipped');
+                        card2.card.classList.remove('flipped');
+                        card1.card.textContent = '';
+                        card2.card.textContent = '';
+                    }
+                    
+                    flippedCards = [];
+                }, 1000);
+            }
+            
+            resetBtn.addEventListener('click', setupGame);
+            
+            // Initial setup
+            setupGame();
+        }
+
+        // Word Guess Game
+        function initWordGame() {
+            const wordDisplay = document.getElementById('word-display');
+            const keyboard = document.getElementById('word-keyboard');
+            const status = document.getElementById('word-status');
+            const resetBtn = document.getElementById('word-reset');
+            
+            const words = ['CHAT', 'GAME', 'CODE', 'PLAY', 'WORD', 'QUIZ', 'JAVA', 'NODE'];
+            let currentWord = '';
+            let guessedLetters = [];
+            let guessesLeft = 6;
+            
+            function setupGame() {
+                // Reset game state
+                currentWord = words[Math.floor(Math.random() * words.length)];
+                guessedLetters = [];
+                guessesLeft = 6;
+                status.textContent = `Guesses left: ${guessesLeft}`;
+                
+                // Create word display
+                wordDisplay.innerHTML = '';
+                for (let i = 0; i < currentWord.length; i++) {
+                    const letterDiv = document.createElement('div');
+                    letterDiv.className = 'word-letter';
+                    wordDisplay.appendChild(letterDiv);
+                }
+                
+                // Create keyboard
+                keyboard.innerHTML = '';
+                for (let i = 65; i <= 90; i++) {
+                    const letter = String.fromCharCode(i);
+                    const key = document.createElement('div');
+                    key.className = 'word-key';
+                    key.textContent = letter;
+                    key.addEventListener('click', () => guessLetter(letter));
+                    keyboard.appendChild(key);
+                }
+            }
+            
+            function updateWordDisplay() {
+                const letterDivs = wordDisplay.querySelectorAll('.word-letter');
+                
+                for (let i = 0; i < currentWord.length; i++) {
+                    if (guessedLetters.includes(currentWord[i])) {
+                        letterDivs[i].textContent = currentWord[i];
+                    } else {
+                        letterDivs[i].textContent = '';
+                    }
+                }
+            }
+            
+            function guessLetter(letter) {
+                if (guessedLetters.includes(letter) || guessesLeft <= 0) {
+                    return;
+                }
+                
+                guessedLetters.push(letter);
+                
+                // Update keyboard
+                const keys = keyboard.querySelectorAll('.word-key');
+                keys.forEach(key => {
+                    if (key.textContent === letter) {
+                        if (currentWord.includes(letter)) {
+                            key.classList.add('correct');
+                        } else {
+                            key.classList.add('used');
+                            guessesLeft--;
+                            status.textContent = `Guesses left: ${guessesLeft}`;
+                        }
+                    }
+                });
+                
+                // Update word display
+                updateWordDisplay();
+                
+                // Check win condition
+                if (currentWord.split('').every(letter => guessedLetters.includes(letter))) {
+                    status.textContent = "You win!";
+                    disableKeyboard();
+                }
+                
+                // Check lose condition
+                if (guessesLeft <= 0) {
+                    status.textContent = `Game over! The word was ${currentWord}`;
+                    disableKeyboard();
+                }
+            }
+            
+            function disableKeyboard() {
+                const keys = keyboard.querySelectorAll('.word-key');
+                keys.forEach(key => {
+                    if (!key.classList.contains('used') && !key.classList.contains('correct')) {
+                        key.classList.add('used');
+                    }
+                });
+            }
+            
+            resetBtn.addEventListener('click', setupGame);
+            
+            // Initial setup
+            setupGame();
+        }
+    </script>
+</body>
+</html>
