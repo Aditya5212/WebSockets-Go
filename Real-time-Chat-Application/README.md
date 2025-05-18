@@ -2,6 +2,13 @@
 
 Welcome to your first Go project! This is a simple real-time chat application built using Go and the Gorilla WebSocket library. It's designed to demonstrate the fundamentals of WebSocket communication for building interactive web applications.
 
+
+
+![Screenshot 2025-05-18 181908](https://github.com/user-attachments/assets/46a2f1f6-803d-4f53-aa92-04f2eb97023a)
+
+
+
+
 ## Project Overview
 
 The application allows multiple users to connect to a chat server via WebSockets. Once connected, users can send messages, and these messages are broadcast in real-time to all other connected users. Each user can specify a name, or they will be assigned "Anonymous" by default.
